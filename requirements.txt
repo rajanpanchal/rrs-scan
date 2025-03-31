@@ -1,5 +1,5 @@
 streamlit
 pandas
-st-aggrid
+streamlit-aggrid
 pyarrow
 yfinance
