@@ -238,7 +238,7 @@ def scanner_wk(data):
     # Sort results by volume
     
     results = results.sort_values('volume_average', ascending=False)
-    results.to_csv("stock_data_dl_rss.csv")
+    #results.to_csv("stock_data_dl_rss.csv")
     return results  # Returning a single dataset with all data
 
 
