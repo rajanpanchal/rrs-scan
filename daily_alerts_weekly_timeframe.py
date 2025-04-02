@@ -415,6 +415,22 @@ def stock_alert():
     filtered_data = filtered_data.loc[:, ~filtered_data.columns.duplicated()]
 
 
+
+    tickerstyle_jscode = JsCode("""
+        class UrlCellRenderer {
+          init(params) {
+            this.eGui = document.createElement('a');
+            this.eGui.innerText=params.value;
+            this.eGui.setAttribute('href', 'https://www.tradingview.com/chart/?symbol='+params.value);
+            this.eGui.setAttribute('style', "text-decoration:none");
+            this.eGui.setAttribute('target', "_blank");
+          }
+          getGui() {
+            return this.eGui;
+          }
+        }
+    """)
+    
     # JavaScript code for coloring cells based on the value of `rss_label_*`
     cellstyle_jscode = JsCode("""
     function(params){
@@ -471,6 +487,9 @@ def stock_alert():
     grid_options.configure_columns(filtered_data, cellStyle=cellstyle_jscode)  # Apply JS-based cellStyle to all columns
     grid_options.configure_selection(selection_mode="single", use_checkbox=True)
     grid_options.configure_default_column(filter=True)
+    # Apply cellStyle for the 'ticker' column
+    grid_options.configure_column('ticker', 
+                              cellRenderer=tickerstyle_jscode)  # Example style for ticker column    
     grid_options = grid_options.build()
 
     # Display the table using Ag-Grid
