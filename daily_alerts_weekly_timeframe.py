@@ -212,6 +212,7 @@ def scanner_wk(data):
         
         # Compute RRS for the last 5 days
         df['rrs'] = (df['power_index'] - df['power_index_ref']).clip(-1, 1)
+
         
         # Label RRS values
         df['rrs_label'] = pd.cut(df['rrs'],
@@ -222,14 +223,22 @@ def scanner_wk(data):
 
         last_5_dates = df.index[df['rrs'].notna()].tolist()[-5:]
 
+        
+
         new_cols = {}
         for date in last_5_dates:
             date_str = date.strftime('%Y-%m-%d')
             new_cols[f'rrs_{date_str}'] = df.loc[date, 'rrs']
             new_cols[f'rrs_label_{date_str}'] = df.loc[date, 'rrs_label']
 
+            # Calculate the price difference from the previous day's close
+            price_diff = df.loc[date, 'close'] - df.loc[df.index[df.index.get_loc(date) - 1], 'close']
+            new_cols[f'price_change_{date_str}'] = round(price_diff, 2)  # Show the price change with 2 decimal places
+
         new_df = pd.DataFrame(new_cols, index=last_5_dates)
         df = pd.concat([df, new_df], axis=1)
+
+        
        
         # Store only the last row for merging
         results = pd.concat([results, df.iloc[[-1]]])
@@ -393,15 +402,17 @@ def stock_alert():
     # Extract first 5 rss_label_* columns and first 5 rss_* columns
     rss_label_columns = [col for col in filter_squeezes_wk.columns if col.startswith('rrs_label')][:6]  # First 5 rss_label columns
     rss_columns = [col for col in filter_squeezes_wk.columns if col.startswith('rrs_')][:10]  # First 5 rss columns
+    price_change_columns = [col for col in filter_squeezes_wk.columns if 'price_change' in col][:6]
+
 
     # Extract other important columns
     other_columns = ['Name', 'Market Cap', 'Sector', 'Industry']
 
     # Exclude `rss` and `rss_label` columns from the selection
-    columns_to_exclude = ['rrs', 'rrs_label']
+    columns_to_exclude = ['rrs', 'rrs_label','price_change']
 
     # Combine the columns in the desired order
-    columns_to_display = order_columns + rss_label_columns + rss_columns + other_columns
+    columns_to_display = order_columns + rss_label_columns +price_change_columns+ rss_columns + other_columns
 
     # Ensure columns exist
     available_columns = filter_squeezes_wk.columns
@@ -480,6 +491,35 @@ def stock_alert():
     }
     """)
 
+    # Dynamic cellRenderer for price_change columns
+    price_change_cell_renderer = JsCode("""
+    class UrlCellRenderer {
+          init(params) {
+            // Get the price change value
+    const value = params.value;
+    
+    let color = '';
+
+    // Assign color based on the value
+    if (value > 0) {
+        color = 'green';  // Green for positive change
+    } else if (value < 0) {
+        color = 'red';    // Red for negative change
+    } else {
+        color = 'black';   // Gray for no change
+    }
+
+    this.eGui = document.createElement('span');
+            this.eGui.innerText=params.value;
+            this.eGui.setAttribute('style', "fontWeight:bold;color:"+color);
+    
+          }
+          getGui() {
+            return this.eGui;
+          }
+        }
+    """)
+
     # Create AgGrid options
     grid_options = GridOptionsBuilder.from_dataframe(filtered_data)
     grid_options.configure_pagination(paginationAutoPageSize=False, paginationPageSize=15)  # Enable pagination with 50 rows per page
@@ -489,7 +529,13 @@ def stock_alert():
     grid_options.configure_default_column(filter=True)
     # Apply cellStyle for the 'ticker' column
     grid_options.configure_column('ticker', 
-                              cellRenderer=tickerstyle_jscode)  # Example style for ticker column    
+                              cellRenderer=tickerstyle_jscode)  # Example style for ticker column
+
+    # Apply the dynamic cellRenderer for all price_change columns
+    price_change_columns = [col for col in filtered_data.columns if 'price_change' in col]
+    for col in price_change_columns:
+        grid_options.configure_column(col, cellRenderer=price_change_cell_renderer)
+
     grid_options = grid_options.build()
 
     # Display the table using Ag-Grid
